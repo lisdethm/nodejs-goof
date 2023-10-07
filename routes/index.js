@@ -2,19 +2,90 @@ var utils = require('../utils');
 var mongoose = require('mongoose');
 var Todo = mongoose.model('Todo');
 var User = mongoose.model('User');
-// TODO:
-var hms = require('humanize-ms');
-var ms = require('ms');
-var streamBuffers = require('stream-buffers');
-var readline = require('readline');
-var moment = require('moment');
-var exec = require('child_process').exec;
-var validator = require('validator');
+var validator = require('validator'); // Agregar el módulo validator
 
-// zip-slip
-var fileType = require('file-type');
-var AdmZip = require('adm-zip');
-var fs = require('fs');
+// ...
+
+exports.loginHandler = function (req, res, next) {
+  // Validar si req.body.username es un correo electrónico válido
+  if (validator.isEmail(req.body.username)) {
+    // Usar un objeto para construir la consulta
+    var query = {
+      username: req.body.username,
+      password: req.body.password
+    };
+
+    User.find(query, function (err, users) {
+      if (err) {
+        return next(err); // Manejar errores adecuadamente
+      }
+
+      if (users.length > 0) {
+        const redirectPage = req.body.redirectPage;
+        const session = req.session;
+        const username = req.body.username;
+        return adminLoginSuccess(redirectPage, session, username, res);
+      } else {
+        return res.status(401).send();
+      }
+    });
+  } else {
+    return res.status(401).send();
+  }
+};
+
+// ...
+
+exports.save_account_details = function (req, res, next) {
+  // get the profile details from the JSON
+  const profile = req.body;
+
+  // Validar la entrada de perfil
+  if (
+    validator.isEmail(profile.email, { allow_display_name: true }) &&
+    validator.isMobilePhone(profile.phone, 'he-IL') &&
+    validator.isAscii(profile.firstname) &&
+    validator.isAscii(profile.lastname) &&
+    validator.isAscii(profile.country)
+  ) {
+    // trim any extra spaces on the right of the name
+    profile.firstname = validator.rtrim(profile.firstname);
+    profile.lastname = validator.rtrim(profile.lastname);
+
+    // render the view
+    return res.render('account.hbs', profile);
+  } else {
+    // Si la validación de entrada falla, renderizar la vista sin los detalles
+    console.log('error in form details');
+    return res.render('account.hbs');
+  }
+};
+
+// ...
+
+exports.create = function (req, res, next) {
+  // ...
+
+  var item = req.body.content;
+  var imgRegex = /\!\[alt text\]\((http.*)\s\".*/;
+  if (typeof item === 'string' && item.match(imgRegex)) {
+    // ...
+  } else {
+    item = parse(item);
+  }
+
+  new Todo({
+    content: item,
+    updated_at: Date.now(),
+  }).save(function (err, todo, count) {
+    if (err) return next(err);
+
+    res.setHeader('Location', '/');
+    res.status(302).send(todo.content.toString('base64'));
+  });
+};
+
+// ...
 
 // prototype-pollution
 var _ = require('lodash');
@@ -341,7 +412,7 @@ exports.chat = {
 
     const message = {
       // Default message icon. Cen be overwritten by user.
-      icon: '👋',
+      icon: '??',
     };
 
     _.merge(message, req.body.message, {
